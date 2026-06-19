@@ -94,7 +94,7 @@ const requestClientCredentialsToken = async (shop) => {
   const data = await response.json();
 
   if (!response.ok || !data.access_token) {
-    throw new Error(data.error_description || data.error || 'Shopify token alinamadi.');
+    throw new Error(data.error_description || data.error || 'Shopify token alınamadı.');
   }
 
   clientCredentialsToken.accessToken = data.access_token;
@@ -203,7 +203,7 @@ const exchangeCodeForToken = async (shop, code) => {
   const data = await response.json();
 
   if (!response.ok || !data.access_token) {
-    throw new Error(data.error_description || data.error || 'Shopify token alinamadi.');
+    throw new Error(data.error_description || data.error || 'Shopify token alınamadı.');
   }
 
   return data.access_token;
@@ -213,7 +213,7 @@ const shopifyRequest = async (shop, path) => {
   const token = await getShopAccessToken(shop);
 
   if (!shop || !token) {
-    throw new Error('Shopify token alinamadi. Render env degerlerini kontrol edin.');
+    throw new Error('Shopify token alınamadı. Render env değerlerini kontrol edin.');
   }
 
   const url = `https://${shop}/admin/api/${env.apiVersion}${path}`;
@@ -227,7 +227,7 @@ const shopifyRequest = async (shop, path) => {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(typeof data.errors === 'string' ? data.errors : 'Shopify sorgusu basarisiz oldu.');
+    throw new Error(typeof data.errors === 'string' ? data.errors : 'Shopify sorgusu başarısız oldu.');
   }
 
   return data;
@@ -302,7 +302,7 @@ const verifyOrder = async ({ orderNumber, email, shop: requestedShop }) => {
       status: 400,
       payload: {
         success: false,
-        error: 'Shopify magazasi tanimli degil.',
+        error: 'Shopify mağazası tanımlı değil.',
       },
     };
   }
@@ -312,7 +312,7 @@ const verifyOrder = async ({ orderNumber, email, shop: requestedShop }) => {
       status: 400,
       payload: {
         success: false,
-        error: 'Siparis numarasi ve e-posta gerekli.',
+        error: 'Sipariş numarası ve e-posta gerekli.',
       },
     };
   }
@@ -335,7 +335,7 @@ const verifyOrder = async ({ orderNumber, email, shop: requestedShop }) => {
       status: 404,
       payload: {
         success: false,
-        error: 'Siparis bilgileri eslesmedi.',
+        error: 'Sipariş bilgileri eşleşmedi.',
       },
     };
   }
@@ -348,7 +348,7 @@ const verifyOrder = async ({ orderNumber, email, shop: requestedShop }) => {
       status: 404,
       payload: {
         success: false,
-        error: 'Bu siparis icin kargo takip numarasi henuz olusmamis.',
+        error: 'Bu sipariş için kargo takip numarası henüz oluşmamış.',
       },
     };
   }
@@ -367,12 +367,12 @@ const handleAuth = (req, res, url) => {
   const shop = normalizeShop(url.searchParams.get('shop') || env.shop);
 
   if (!env.appUrl || !env.apiKey || !env.apiSecret) {
-    send(res, 500, 'APP_URL, SHOPIFY_API_KEY ve SHOPIFY_API_SECRET env degerleri gerekli.');
+    send(res, 500, 'APP_URL, SHOPIFY_API_KEY ve SHOPIFY_API_SECRET env değerleri gerekli.');
     return;
   }
 
   if (!shop) {
-    send(res, 400, 'Gecerli shop parametresi gerekli. Ornek: /auth?shop=renaogift.myshopify.com');
+    send(res, 400, 'Geçerli shop parametresi gerekli. Örnek: /auth?shop=renaogift.myshopify.com');
     return;
   }
 
@@ -390,12 +390,12 @@ const handleAuthCallback = async (req, res, url) => {
   const cookieState = String(req.headers.cookie || '').match(/(?:^|; )renao_shopify_state=([^;]+)/)?.[1] || '';
 
   if (!verifyShopifyHmac(url.searchParams)) {
-    send(res, 401, 'Shopify HMAC dogrulanamadi.');
+    send(res, 401, 'Shopify HMAC doğrulanamadı.');
     return;
   }
 
   if (!shop || !code || !state || !safeCompare(state, cookieState)) {
-    send(res, 400, 'Kurulum bilgileri eksik veya state eslesmedi.');
+    send(res, 400, 'Kurulum bilgileri eksik veya state eşleşmedi.');
     return;
   }
 
@@ -486,7 +486,7 @@ const server = http.createServer(async (req, res) => {
       500,
       {
         success: false,
-        error: error.message || 'Beklenmeyen bir hata olustu.',
+        error: error.message || 'Beklenmeyen bir hata oluştu.',
       },
       origin
     );
