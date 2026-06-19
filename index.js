@@ -19,6 +19,11 @@ const env = {
   defaultCarrier: (process.env.DEFAULT_CARRIER || 'hepsijet').toLowerCase(),
 };
 
+const clientCredentialsToken = {
+  accessToken: '',
+  expiresAt: 0,
+};
+
 const safeCompare = (a, b) => {
   const left = Buffer.from(String(a || ''), 'utf8');
   const right = Buffer.from(String(b || ''), 'utf8');
@@ -66,14 +71,48 @@ const saveShopToken = (shop, accessToken) => {
   writeTokenStore(store);
 };
 
-const getShopToken = (shop) => {
+const requestClientCredentialsToken = async (shop) => {
+  if (!env.apiKey || !env.apiSecret) return '';
+
+  if (clientCredentialsToken.accessToken && clientCredentialsToken.expiresAt > Date.now() + 60_000) {
+    return clientCredentialsToken.accessToken;
+  }
+
+  const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+    },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: env.apiKey,
+      client_secret: env.apiSecret,
+    }).toString(),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.access_token) {
+    throw new Error(data.error_description || data.error || 'Shopify token alinamadi.');
+  }
+
+  clientCredentialsToken.accessToken = data.access_token;
+  clientCredentialsToken.expiresAt = Date.now() + Math.max(Number(data.expires_in || 3600) - 60, 60) * 1000;
+
+  return clientCredentialsToken.accessToken;
+};
+
+const getShopAccessToken = async (shop) => {
   if (env.token) return env.token;
 
   const store = readTokenStore();
   if (store[shop]?.accessToken) return store[shop].accessToken;
 
   const firstInstalledShop = Object.keys(store).find((installedShop) => store[installedShop]?.accessToken);
-  return firstInstalledShop ? store[firstInstalledShop].accessToken : '';
+  if (firstInstalledShop) return store[firstInstalledShop].accessToken;
+
+  return requestClientCredentialsToken(shop);
 };
 
 const send = (res, status, body, headers = {}) => {
@@ -171,10 +210,10 @@ const exchangeCodeForToken = async (shop, code) => {
 };
 
 const shopifyRequest = async (shop, path) => {
-  const token = getShopToken(shop);
+  const token = await getShopAccessToken(shop);
 
   if (!shop || !token) {
-    throw new Error('Shopify kurulumu tamamlanmamis. Once app install edilmeli.');
+    throw new Error('Shopify token alinamadi. Render env degerlerini kontrol edin.');
   }
 
   const url = `https://${shop}/admin/api/${env.apiVersion}${path}`;
@@ -395,13 +434,26 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/health') {
       const shop = normalizeShop(env.shop);
       const store = readTokenStore();
+      let installed = false;
+      let tokenMode = 'none';
+      let setupError = '';
+
+      try {
+        installed = Boolean(shop && (await getShopAccessToken(shop)));
+        tokenMode = env.token ? 'static_admin_token' : store[shop]?.accessToken ? 'oauth_saved_token' : 'client_credentials';
+      } catch (error) {
+        setupError = error.message || 'Token kontrol edilemedi.';
+      }
+
       sendJson(
         res,
         200,
         {
           ok: true,
           shop: shop || null,
-          installed: Boolean(getShopToken(shop)),
+          installed,
+          tokenMode,
+          setupError,
           installedShops: Object.keys(store),
         },
         origin
