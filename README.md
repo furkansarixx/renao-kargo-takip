@@ -35,7 +35,7 @@ ALLOWED_ORIGIN=https://renaogift.com
 DEFAULT_CARRIER=hepsijet
 ```
 
-`SHOPIFY_ADMIN_ACCESS_TOKEN` bos kalabilir. OAuth kurulumundan sonra token servis tarafinda saklanir. Daha basit manuel kurulum yapmak istersen bu alana Admin API token verilebilir.
+`SHOPIFY_ADMIN_ACCESS_TOKEN` bos kalabilir. Servis once bu statik tokeni kullanir; yoksa Dev Dashboard `SHOPIFY_API_KEY` ve `SHOPIFY_API_SECRET` degerleriyle Shopify'in `client_credentials` akisini kullanarak gecici Admin API token alir ve suresi dolunca yeniler.
 
 ## Shopify Dev Dashboard ayarlari
 
@@ -57,7 +57,7 @@ Scopes:
 read_orders,read_fulfillments
 ```
 
-Kurulum URL'si:
+Eski OAuth kurulum URL'si. Client credentials akisi kullanilirken normalde gerekmez:
 
 ```text
 https://render-uygulama-urlin.onrender.com/auth?shop=renaogift.myshopify.com
