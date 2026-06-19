@@ -70,7 +70,10 @@ const getShopToken = (shop) => {
   if (env.token) return env.token;
 
   const store = readTokenStore();
-  return store[shop]?.accessToken || '';
+  if (store[shop]?.accessToken) return store[shop].accessToken;
+
+  const firstInstalledShop = Object.keys(store).find((installedShop) => store[installedShop]?.accessToken);
+  return firstInstalledShop ? store[firstInstalledShop].accessToken : '';
 };
 
 const send = (res, status, body, headers = {}) => {
@@ -251,7 +254,7 @@ const loadFulfillments = async (shop, order) => {
 };
 
 const verifyOrder = async ({ orderNumber, email, shop: requestedShop }) => {
-  const shop = normalizeShop(requestedShop || env.shop);
+  const shop = normalizeShop(env.shop) || normalizeShop(requestedShop);
   const normalizedOrderName = normalizeOrderName(orderNumber);
   const normalizedEmail = normalizeEmail(email);
 
@@ -391,7 +394,18 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && url.pathname === '/health') {
       const shop = normalizeShop(env.shop);
-      sendJson(res, 200, { ok: true, installed: Boolean(shop && getShopToken(shop)) }, origin);
+      const store = readTokenStore();
+      sendJson(
+        res,
+        200,
+        {
+          ok: true,
+          shop: shop || null,
+          installed: Boolean(getShopToken(shop)),
+          installedShops: Object.keys(store),
+        },
+        origin
+      );
       return;
     }
 
