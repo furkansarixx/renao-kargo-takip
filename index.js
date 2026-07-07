@@ -2,6 +2,8 @@ const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
+const fetch = globalThis.fetch || require('node-fetch');
+const { handleSpotifyRequest } = require('./spotify');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const TOKEN_STORE = path.join(DATA_DIR, 'shops.json');
@@ -94,7 +96,7 @@ const requestClientCredentialsToken = async (shop) => {
   const data = await response.json();
 
   if (!response.ok || !data.access_token) {
-    throw new Error(data.error_description || data.error || 'Shopify token alınamadı.');
+    throw new Error(data.error_description || data.error || 'Shopify token alÄ±namadÄ±.');
   }
 
   clientCredentialsToken.accessToken = data.access_token;
@@ -129,6 +131,16 @@ const sendJson = (res, status, payload, origin) => {
     'Cache-Control': 'no-store',
   });
 };
+
+const isSpotifyPath = (pathname) => (
+  pathname === '/search'
+  || pathname === '/code'
+  || pathname === '/qr'
+  || pathname === '/shorten'
+  || pathname.startsWith('/r/')
+  || pathname.startsWith('/apps/renao-spotify/')
+  || pathname.startsWith('/api/spotify/')
+);
 
 const readBody = (req) =>
   new Promise((resolve, reject) => {
@@ -203,7 +215,7 @@ const exchangeCodeForToken = async (shop, code) => {
   const data = await response.json();
 
   if (!response.ok || !data.access_token) {
-    throw new Error(data.error_description || data.error || 'Shopify token alınamadı.');
+    throw new Error(data.error_description || data.error || 'Shopify token alÄ±namadÄ±.');
   }
 
   return data.access_token;
@@ -213,7 +225,7 @@ const shopifyRequest = async (shop, path) => {
   const token = await getShopAccessToken(shop);
 
   if (!shop || !token) {
-    throw new Error('Shopify token alınamadı. Render env değerlerini kontrol edin.');
+    throw new Error('Shopify token alÄ±namadÄ±. Render env deÄerlerini kontrol edin.');
   }
 
   const url = `https://${shop}/admin/api/${env.apiVersion}${path}`;
@@ -227,7 +239,7 @@ const shopifyRequest = async (shop, path) => {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(typeof data.errors === 'string' ? data.errors : 'Shopify sorgusu başarısız oldu.');
+    throw new Error(typeof data.errors === 'string' ? data.errors : 'Shopify sorgusu baÅarÄ±sÄ±z oldu.');
   }
 
   return data;
@@ -302,7 +314,7 @@ const verifyOrder = async ({ orderNumber, email, shop: requestedShop }) => {
       status: 400,
       payload: {
         success: false,
-        error: 'Shopify mağazası tanımlı değil.',
+        error: 'Shopify maÄazasÄ± tanÄ±mlÄ± deÄil.',
       },
     };
   }
@@ -312,7 +324,7 @@ const verifyOrder = async ({ orderNumber, email, shop: requestedShop }) => {
       status: 400,
       payload: {
         success: false,
-        error: 'Sipariş numarası ve e-posta gerekli.',
+        error: 'SipariÅ numarasÄ± ve e-posta gerekli.',
       },
     };
   }
@@ -335,7 +347,7 @@ const verifyOrder = async ({ orderNumber, email, shop: requestedShop }) => {
       status: 404,
       payload: {
         success: false,
-        error: 'Sipariş bilgileri eşleşmedi.',
+        error: 'SipariÅ bilgileri eÅleÅmedi.',
       },
     };
   }
@@ -348,7 +360,7 @@ const verifyOrder = async ({ orderNumber, email, shop: requestedShop }) => {
       status: 404,
       payload: {
         success: false,
-        error: 'Bu sipariş için kargo takip numarası henüz oluşmamış.',
+        error: 'Bu sipariÅ iÃ§in kargo takip numarasÄ± henÃ¼z oluÅmamÄ±Å.',
       },
     };
   }
@@ -367,12 +379,12 @@ const handleAuth = (req, res, url) => {
   const shop = normalizeShop(url.searchParams.get('shop') || env.shop);
 
   if (!env.appUrl || !env.apiKey || !env.apiSecret) {
-    send(res, 500, 'APP_URL, SHOPIFY_API_KEY ve SHOPIFY_API_SECRET env değerleri gerekli.');
+    send(res, 500, 'APP_URL, SHOPIFY_API_KEY ve SHOPIFY_API_SECRET env deÄerleri gerekli.');
     return;
   }
 
   if (!shop) {
-    send(res, 400, 'Geçerli shop parametresi gerekli. Örnek: /auth?shop=renaogift.myshopify.com');
+    send(res, 400, 'GeÃ§erli shop parametresi gerekli. Ãrnek: /auth?shop=renaogift.myshopify.com');
     return;
   }
 
@@ -390,12 +402,12 @@ const handleAuthCallback = async (req, res, url) => {
   const cookieState = String(req.headers.cookie || '').match(/(?:^|; )renao_shopify_state=([^;]+)/)?.[1] || '';
 
   if (!verifyShopifyHmac(url.searchParams)) {
-    send(res, 401, 'Shopify HMAC doğrulanamadı.');
+    send(res, 401, 'Shopify HMAC doÄrulanamadÄ±.');
     return;
   }
 
   if (!shop || !code || !state || !safeCompare(state, cookieState)) {
-    send(res, 400, 'Kurulum bilgileri eksik veya state eşleşmedi.');
+    send(res, 400, 'Kurulum bilgileri eksik veya state eÅleÅmedi.');
     return;
   }
 
@@ -471,6 +483,11 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if ((req.method === 'GET' || req.method === 'HEAD') && isSpotifyPath(url.pathname)) {
+      await handleSpotifyRequest(req, res);
+      return;
+    }
+
     if (req.method === 'POST' && url.pathname === '/api/verify-order') {
       const body = await readBody(req);
       const payload = JSON.parse(body || '{}');
@@ -486,7 +503,7 @@ const server = http.createServer(async (req, res) => {
       500,
       {
         success: false,
-        error: error.message || 'Beklenmeyen bir hata oluştu.',
+        error: error.message || 'Beklenmeyen bir hata oluÅtu.',
       },
       origin
     );
